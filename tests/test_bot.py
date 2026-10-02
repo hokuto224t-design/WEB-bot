@@ -92,7 +92,8 @@ def test_collect_filters_old_keyword_and_failures():
         {"name": "ok", "type": "rss", "url": "https://ok/feed", "tier": 3, "keyword_filter": True},
         {"name": "down", "type": "rss", "url": "https://down/feed", "tier": 1},
     ])
-    result = collect(config, since=NOW - timedelta(days=3), session=FakeSession())
+    result, failed = collect(config, since=NOW - timedelta(days=3), session=FakeSession())
+    assert failed == ["down"]
     assert [a.title for a in result] == ["Performance Max update"]
     assert result[0].tier == 1  # blog.google は公式ドメイン
 
@@ -222,10 +223,11 @@ def test_store_roundtrip_and_prune(tmp_path):
 @pytest.fixture
 def run_env(tmp_path, monkeypatch):
     arts = [article("https://blog.google/pmax", title="Performance Max update")]
-    monkeypatch.setattr(main_mod, "collect", lambda config, since: arts)
+    monkeypatch.setattr(main_mod, "collect", lambda config, since: (arts, []))
     posted = []
     monkeypatch.setattr(main_mod.slack, "post", lambda url, ns: posted.append(ns))
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.example/x")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
     args = main_mod.parse_args(["--state", str(tmp_path / "state.json")])
     return arts, posted, args, monkeypatch
 
@@ -247,3 +249,59 @@ def test_run_sends_nothing_when_no_important_news(run_env):
     monkeypatch.setattr(main_mod, "Evaluator", lambda model: Evaluator(client=client, model=model))
     assert main_mod.run(args) == 0
     assert posted == []
+
+
+def use_fake_evaluator(monkeypatch, client):
+    monkeypatch.setattr(main_mod, "Evaluator", lambda model: Evaluator(client=client, model=model))
+
+
+def test_dry_run_writes_report_without_slack_or_state(run_env, tmp_path):
+    arts, posted, args, monkeypatch = run_env
+    monkeypatch.delenv("SLACK_WEBHOOK_URL")
+    client, _ = fake_client(eval_json(arts))
+    use_fake_evaluator(monkeypatch, client)
+    args.dry_run = True
+    args.report = tmp_path / "out" / "report.md"
+    assert main_mod.run(args) == 0
+    text = args.report.read_text(encoding="utf-8")
+    assert "通知予定: 1 件" in text and "P-MAX の新機能" in text
+    assert posted == []
+    assert not args.state.exists()
+
+
+def test_dry_run_report_lists_excluded_with_reason(run_env, tmp_path):
+    arts, _, args, monkeypatch = run_env
+    client, _ = fake_client(eval_json(arts, notify=False))
+    use_fake_evaluator(monkeypatch, client)
+    args.dry_run = True
+    args.report = tmp_path / "report.md"
+    assert main_mod.run(args) == 0
+    text = args.report.read_text(encoding="utf-8")
+    assert "重要な情報はありませんでした" in text
+    assert "除外した記事（1 件）" in text
+
+
+def test_dry_run_fails_when_every_batch_fails(run_env):
+    _, _, args, monkeypatch = run_env
+    client, _ = fake_client("", stop_reason="refusal")
+    use_fake_evaluator(monkeypatch, client)
+    args.dry_run = True
+    assert main_mod.run(args) == 1
+
+
+def test_collect_only_needs_no_api_key(run_env, tmp_path, capsys):
+    _, _, args, monkeypatch = run_env
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    monkeypatch.setattr(main_mod, "Evaluator", None)  # 呼ばれたら失敗する
+    args.collect_only = True
+    assert main_mod.run(args) == 0
+    assert "Performance Max update" in capsys.readouterr().out
+
+
+def test_run_fails_when_every_source_fails(run_env, tmp_path):
+    _, _, args, monkeypatch = run_env
+    monkeypatch.setattr(main_mod, "collect", lambda config, since: ([], [s["name"] for s in config["sources"]]))
+    args.dry_run = True
+    args.report = tmp_path / "report.md"
+    assert main_mod.run(args) == 1
+    assert "取得に失敗した情報源" in args.report.read_text(encoding="utf-8")

@@ -4,7 +4,7 @@ WEB広告・デジタルマーケティングの最新情報を収集し、**重
 
 - 広告媒体の公式発表・公式ブログ・国内外のマーケティングメディアを RSS で毎朝収集
 - Claude（`claude-opus-5-5`）が「広告運用担当者が知るべき情報か」を判定
-- 重要度 4 以上（5段階）のものだけを Slack に通知。**該当がない日は何も送信しない**
+- 重要度 4 以上（5段階）のものだけを Slack に通知。**該当がない日は何も送信しない**（※Slack 連携は現在保留中。dry-run で判定結果を確認できます）
 - 一度評価・通知した内容は記録し、同じ記事・同じトピックを二度通知しない
 
 ## 仕組み
@@ -57,45 +57,62 @@ P-MAX でチャネル別レポートが全アカウントに提供開始
 出典: Google Ads & Commerce Blog（公式発表）｜2026-10-02｜関連: Search Engine Land
 ```
 
-## セットアップ
+## 現在の状態
 
-### 1. Slack Incoming Webhook を作成
+**Slack 連携は保留中です。** いまは dry-run（Slack に送らず、判定結果をレポートで確認する）までを実装しています。
+Slack 送信のコード（`adbot/slack.py`）は残してあり、再開時はワークフローを戻すだけで使えます。
 
-1. https://api.slack.com/apps で App を作成 → **Incoming Webhooks** を有効化
-2. 通知先チャンネルを選んで Webhook URL を発行
+## dry-run の実行
 
-### 2. GitHub Actions で毎日実行（推奨）
+### GitHub Actions で実行（推奨）
 
-1. リポジトリの **Settings → Secrets and variables → Actions** に以下を登録
-   - `ANTHROPIC_API_KEY`: Claude API キー
-   - `SLACK_WEBHOOK_URL`: 上記の Webhook URL
-2. `.github/workflows/daily.yml` が毎日 **7:47 JST** に実行されます
-3. 初回は **Actions → Daily ad news check → Run workflow** で `dry_run` にチェックを入れて動作確認できます
+1. リポジトリの **Settings → Secrets and variables → Actions** に `ANTHROPIC_API_KEY` を登録
+2. **Actions → Dry run → Run workflow** を実行
+   - `mode`: `dry-run`（AI 評価まで）または `collect-only`（収集のみ・API キー不要）
+   - `since_hours`: 対象期間（既定 72 時間）
+3. 実行画面の **Summary** にレポートが表示されます（Artifact `report` からも `report.md` をダウンロード可）
 
-実行後、`data/state.json`（評価済み・通知済みの記録）が自動でコミットされます。
+まず `collect-only` で各情報源が取得できているか確認し、その後 `dry-run` で AI の判定を確認する流れがおすすめです。
 
-> 初回実行時は直近72時間の記事がまとめて評価されるため、通知がやや多くなる可能性があります。
-
-### 3. ローカルで実行
+### ローカルで実行
 
 ```bash
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...
-export SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
 
-python -m adbot.main --dry-run   # Slack に送らず判定結果だけ表示（状態も保存しない）
-python -m adbot.main             # 本番実行
+python -m adbot.main --collect-only                    # 収集結果のみ（API キー不要）
+
+export ANTHROPIC_API_KEY=sk-ant-...
+python -m adbot.main --dry-run --report out/report.md  # AI 評価まで実行してレポート出力
 ```
+
+dry-run は状態ファイル（`data/state.json`）を更新しないため、何度実行しても同じ記事が評価対象になります。
+
+### レポートの内容
+
+- **通知予定**: Slack に送られる予定の記事（重要度・日本語要約・運用への影響・推奨アクション・判定理由）
+- **除外した記事**: AI が除外した記事と、その重要度・理由（判定基準の調整用）
+- **取得に失敗した情報源**: フィード URL の変更などで取得できなかったソース
+
+終了コードは、すべての情報源の取得に失敗した場合と、AI 評価がすべて失敗した場合に 1 になります（Actions 上で失敗として表示）。
 
 主なオプション:
 
 | オプション | 既定値 | 説明 |
 |---|---|---|
+| `--dry-run` | - | Slack に送らず判定結果をレポート出力（状態も保存しない） |
+| `--collect-only` | - | 収集結果のみ出力（AI 評価なし） |
+| `--report` | - | レポート（Markdown）の出力先ファイル。未指定時は標準出力のみ |
 | `--since-hours` | 72 | この時間以内に公開された記事を対象にする |
 | `--min-importance` | 4 | 通知する最低重要度（1-5）。通知を減らしたいときは 5 |
 | `--max-items` | 10 | 1回の通知の最大件数 |
 | `--max-articles` | 150 | 1回に AI 評価する最大記事数（超過分は次回評価） |
 | `--model` | `claude-opus-5-5` | 使用モデル（環境変数 `ADBOT_MODEL` でも指定可） |
+
+## Slack 連携の再開手順（保留中）
+
+1. Slack App で Incoming Webhook を発行し、Secrets に `SLACK_WEBHOOK_URL` を登録
+2. 毎日実行のワークフロー（schedule で `python -m adbot.main` を実行し、`data/state.json` をコミットするもの）を追加
+   - 状態ファイルのコミットにより、同じ記事・同じトピックの重複通知を防ぎます
 
 ## カスタマイズ
 
@@ -113,6 +130,6 @@ python -m pytest -q
 
 ## 注意事項
 
-- 取得に失敗した情報源はスキップしてログに警告を出します（1 つの失敗で全体は止まりません）。フィード URL は媒体側の変更で無効になることがあるので、Actions のログで `ソース取得失敗` を定期的に確認してください。
+- 取得に失敗した情報源はスキップします（1 つの失敗で全体は止まりません）。フィード URL は媒体側の変更で無効になることがあるので、レポートの「取得に失敗した情報源」を確認してください。
 - Claude の評価に失敗した記事は「評価済み」にせず、次回実行時に再評価します。
 - Claude API の利用料が発生します。1回あたりの評価記事数は `--max-articles` で上限を設定できます。

@@ -1,0 +1,49 @@
+name: Dry run
+
+# Slack 連携は保留中のため、手動実行で判定結果をレポートとして確認する。
+# 結果は Actions の実行画面（Summary）と Artifact（report.md）に出力される。
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run: AI 評価まで実行 / collect-only: 収集結果のみ（API キー不要）"
+        type: choice
+        options: [dry-run, collect-only]
+        default: dry-run
+      since_hours:
+        description: "対象期間（時間）"
+        default: "72"
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Run bot (${{ inputs.mode }})
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python -m adbot.main --${{ inputs.mode }} --since-hours "${{ inputs.since_hours }}" --report out/report.md
+
+      - name: Write job summary
+        if: always()
+        run: |
+          if [ -f out/report.md ]; then cat out/report.md >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report
+          path: out/report.md
+          if-no-files-found: ignore

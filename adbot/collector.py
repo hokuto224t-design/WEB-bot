@@ -127,16 +127,23 @@ def fetch_source(source: dict, config: dict, session: requests.Session, timeout:
     return parse_feed(resp.content, source, config)
 
 
-def collect(config: dict, since: datetime, session: requests.Session | None = None) -> list[Article]:
-    """全ソースから since 以降の記事を収集する。取得に失敗したソースはスキップする."""
+def collect(
+    config: dict, since: datetime, session: requests.Session | None = None
+) -> tuple[list[Article], list[str]]:
+    """全ソースから since 以降の記事を収集する.
+
+    取得に失敗したソースはスキップし、戻り値は (記事, 取得に失敗したソース名)。
+    """
     session = session or requests.Session()
     keywords = config.get("keywords", [])
     collected: dict[str, Article] = {}
+    failed: list[str] = []
     for source in config["sources"]:
         try:
             articles = fetch_source(source, config, session)
         except Exception as exc:  # noqa: BLE001 - 1 ソースの失敗で全体を止めない
             log.warning("ソース取得失敗: %s (%s)", source["name"], exc)
+            failed.append(source["name"])
             continue
 
         kept = 0
@@ -154,7 +161,7 @@ def collect(config: dict, since: datetime, session: requests.Session | None = No
                 kept += 1
         log.info("%s: %d 件取得 / %d 件対象", source["name"], len(articles), kept)
     # 一次情報に近い順、同じ tier 内では新しい順
-    return sorted(collected.values(), key=lambda a: (a.tier, -(a.published or since).timestamp()))
+    return sorted(collected.values(), key=lambda a: (a.tier, -(a.published or since).timestamp())), failed
 
 
 def default_since(hours: int) -> datetime:
