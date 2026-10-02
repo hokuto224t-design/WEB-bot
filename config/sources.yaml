@@ -1,0 +1,248 @@
+# 情報源の定義
+#
+# tier（情報源の信頼度・優先度。小さいほど一次情報に近い）
+#   1: 各広告媒体の公式発表
+#   2: 各媒体の公式ブログ・ヘルプ
+#   3: Google / Meta 等の公式ドキュメント（開発者向け含む）
+#   4: 信頼できる国内マーケティングメディア
+#   5: 海外の広告・マーケティングメディア
+#
+# type:
+#   rss         : RSS / Atom フィード
+#   google_news : Google News RSS 検索（RSS を提供していない媒体の補完用）
+#
+# keyword_filter: true の場合、タイトル・概要に広告関連キーワードを含む記事のみ AI 評価に回す
+#                 （一般ニュースが多いメディア向け。AI 呼び出しコストの削減）
+#
+# priority（監視対象の優先度。AI 評価時のヒントとして渡す）: high / medium / low
+
+sources:
+  # ---------- 1-3: 公式 ----------
+  - name: Google Ads & Commerce Blog
+    type: rss
+    url: https://blog.google/products/ads-commerce/rss/
+    tier: 1
+    platform: Google Ads
+    priority: high
+
+  - name: Google Ads Developer Blog
+    type: rss
+    url: https://ads-developers.googleblog.com/feeds/posts/default
+    tier: 3
+    platform: Google Ads
+    priority: medium
+
+  - name: Google 広告 公式（Google News）
+    type: google_news
+    query: 'site:support.google.com/google-ads 広告 OR site:blog.google "Google 広告"'
+    tier: 2
+    platform: Google Ads
+    priority: high
+
+  - name: Meta Newsroom
+    type: rss
+    url: https://about.fb.com/news/feed/
+    tier: 1
+    platform: Meta広告
+    priority: high
+    keyword_filter: true
+
+  - name: Meta for Developers Blog
+    type: rss
+    url: https://developers.facebook.com/blog/feed/
+    tier: 3
+    platform: Meta広告
+    priority: medium
+    keyword_filter: true
+
+  - name: Meta for Business（Google News）
+    type: google_news
+    query: 'site:facebook.com/business OR site:about.fb.com Meta 広告 Advantage+'
+    tier: 2
+    platform: Meta広告
+    priority: high
+
+  - name: YouTube Official Blog
+    type: rss
+    url: https://blog.youtube/rss/
+    tier: 1
+    platform: YouTube広告
+    priority: high
+    keyword_filter: true
+
+  - name: Yahoo!広告 公式（Google News）
+    type: google_news
+    query: '"Yahoo!広告" (site:lycbiz.com OR site:ads-promo.yahoo.co.jp OR site:lycorp.co.jp)'
+    tier: 1
+    platform: Yahoo!広告
+    priority: high
+
+  - name: LINE広告 公式（Google News）
+    type: google_news
+    query: '"LINE広告" (site:lycbiz.com OR site:lycorp.co.jp)'
+    tier: 1
+    platform: LINE広告
+    priority: high
+
+  - name: TikTok Newsroom
+    type: rss
+    url: https://newsroom.tiktok.com/en-us/rss
+    tier: 1
+    platform: TikTok Ads
+    priority: high
+    keyword_filter: true
+
+  - name: TikTok for Business（Google News）
+    type: google_news
+    query: '"TikTok for Business" OR "TikTok広告" OR "TikTok Ads"'
+    tier: 4
+    platform: TikTok Ads
+    priority: high
+
+  - name: X Ads（Google News）
+    type: google_news
+    query: '"X広告" OR "X Ads" OR site:business.x.com'
+    tier: 4
+    platform: X Ads
+    priority: medium
+
+  - name: SmartNews Ads（Google News）
+    type: google_news
+    query: '"SmartNews Ads" OR "スマートニュース広告" OR site:about.smartnews.com 広告'
+    tier: 4
+    platform: SmartNews Ads
+    priority: medium
+
+  # ---------- 4: 国内マーケティングメディア ----------
+  - name: MarkeZine
+    type: rss
+    url: https://markezine.jp/rss/new/20/index.xml
+    tier: 4
+    priority: medium
+    keyword_filter: true
+
+  - name: Web担当者Forum
+    type: rss
+    url: https://webtan.impress.co.jp/rss.xml
+    tier: 4
+    priority: medium
+    keyword_filter: true
+
+  - name: DIGIDAY[日本版]
+    type: rss
+    url: https://digiday.jp/feed/
+    tier: 4
+    priority: low
+    keyword_filter: true
+
+  - name: 国内 広告アップデート（Google News）
+    type: google_news
+    query: '(広告 新機能 OR 広告メニュー 提供開始 OR 広告 仕様変更) (Google OR Meta OR Yahoo OR LINE OR TikTok OR X OR SmartNews)'
+    tier: 4
+    priority: medium
+
+  # ---------- 5: 海外メディア ----------
+  - name: Search Engine Land
+    type: rss
+    url: https://searchengineland.com/feed
+    tier: 5
+    priority: medium
+    keyword_filter: true
+
+  - name: Search Engine Journal
+    type: rss
+    url: https://www.searchenginejournal.com/feed/
+    tier: 5
+    priority: low
+    keyword_filter: true
+
+  - name: Social Media Today
+    type: rss
+    url: https://www.socialmediatoday.com/feeds/news/
+    tier: 5
+    priority: low
+    keyword_filter: true
+
+  - name: PPC Land
+    type: rss
+    url: https://ppc.land/rss/
+    tier: 5
+    priority: medium
+    keyword_filter: true
+
+  - name: AdExchanger
+    type: rss
+    url: https://www.adexchanger.com/feed/
+    tier: 5
+    priority: low
+    keyword_filter: true
+
+# keyword_filter: true のソースで使う広告関連キーワード（大文字小文字は区別しない）
+keywords:
+  - 広告
+  - 配信
+  - ターゲティング
+  - コンバージョン
+  - 計測
+  - クリエイティブ
+  - 入札
+  - オーディエンス
+  - アトリビューション
+  - リテールメディア
+  - ad
+  - ads
+  - advertis
+  - campaign
+  - targeting
+  - conversion
+  - measurement
+  - attribution
+  - bidding
+  - audience
+  - creative
+  - Performance Max
+  - PMax
+  - Advantage+
+  - Demand Gen
+  - CAPI
+  - Conversions API
+  - cookie
+  - privacy sandbox
+  - retail media
+  - CTV
+  - AI Max
+
+# 公式ドメイン（Google News 経由の記事でも、このドメインなら tier を引き上げる）
+official_domains:
+  blog.google: 1
+  support.google.com: 2
+  ads-developers.googleblog.com: 3
+  developers.google.com: 3
+  about.fb.com: 1
+  facebook.com: 2
+  developers.facebook.com: 3
+  blog.youtube: 1
+  lycbiz.com: 1
+  lycorp.co.jp: 1
+  ads-promo.yahoo.co.jp: 1
+  newsroom.tiktok.com: 1
+  ads.tiktok.com: 2
+  business.x.com: 1
+  blog.x.com: 1
+  about.smartnews.com: 1
+  ads.smartnews.com: 2
+  business.linkedin.com: 2
+  ads.microsoft.com: 2
+  about.ads.microsoft.com: 2
+  advertising.amazon.com: 2
+  business.pinterest.com: 2
+
+# SNS ドメイン（これらのみを根拠とする情報は通知しない）
+social_domains:
+  - x.com
+  - twitter.com
+  - threads.net
+  - facebook.com/groups
+  - reddit.com
+  - linkedin.com/posts
+  - note.com
